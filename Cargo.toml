@@ -1,0 +1,25 @@
+[package]
+name = "ravalink"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+async_fn_traits = "0.1.1" # Probably a better approach exists
+chrono = "0.4.38"
+colored = "2.1.0"
+dotenvy = "0.15.7"
+fern = { version = "0.6.2", features = ["colored"] }
+log = "0.4.22"
+nanoid = "0.4.0"
+rdkafka = "0.36.2"
+reqwest = "0.12.7"
+serde = "1.0.208"
+serde_derive = "1.0.208"
+serde_json = "1.0.125"
+serenity = "0.12.2"
+songbird = "0.4.3"
+tokio = { version = "1.39.3", features = ["full"] }
+
+[dependencies.ravalink-interconnect]
+git = "https://github.com/CrySteRz/ravalink-interconnect.git"
