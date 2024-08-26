@@ -1,7 +1,9 @@
+// src/utils/config.rs
+
+use once_cell::sync::Lazy;
 use serde_derive::{Deserialize, Serialize};
 use dotenvy::dotenv;
 use std::env;
-use crate::utils::constants::{DEFAULT_JOB_EXPIRATION_TIME_SECONDS, DEFAULT_BOT_IDLE_TIME_SECONDS};
 
 #[derive(Deserialize, Clone, Serialize)]
 pub struct ServerConfig {
@@ -29,9 +31,10 @@ pub struct KafkaConfig {
 pub struct Config {
     pub config: ServerConfig,
     pub kafka: KafkaConfig,
+    pub redis_url: String,
 }
 
-pub fn init_config() -> Config {
+pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     dotenv().ok();
 
     Config {
@@ -43,8 +46,8 @@ pub fn init_config() -> Config {
             discord_bot_token: env::var("DISCORD_BOT_TOKEN")
                 .expect("DISCORD_BOT_TOKEN must be set"),
             worker_id: env::var("WORKER_ID").ok().or_else(|| Some(nanoid::nanoid!())),
-            job_expiration_time_seconds: DEFAULT_JOB_EXPIRATION_TIME_SECONDS,
-            bot_idle_time_seconds: DEFAULT_BOT_IDLE_TIME_SECONDS,
+            job_expiration_time_seconds: 3600,  // Replace with actual default
+            bot_idle_time_seconds: 600,         // Replace with actual default
         },
         kafka: KafkaConfig {
             kafka_uri: env::var("KAFKA_URI").expect("KAFKA_URI must be set"),
@@ -57,5 +60,6 @@ pub fn init_config() -> Config {
             kafka_ssl_key: env::var("KAFKA_SSL_KEY").ok(),
             kafka_ssl_ca: env::var("KAFKA_SSL_CA").ok(),
         },
+        redis_url: env::var("REDIS_URL").expect("REDIS_URL must be set"),
     }
-}
+});

@@ -3,7 +3,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 
 
 
-pub fn loggers() {
+pub async fn loggers() {
     let colors = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)

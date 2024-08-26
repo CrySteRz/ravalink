@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use colored::Colorize;
-use crate::utils::{logger::loggers, config::init_config};
+use crate::utils::logger::loggers;
 use std::time::Duration;
 
 
@@ -44,9 +44,8 @@ pub fn print_warnings() {
 }
 
 
-pub fn initialize () {
+pub async fn initialize() {
     print_banner();
     print_warnings();
-    loggers();
-    init_config();
+    loggers().await;
 }

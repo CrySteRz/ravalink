@@ -1,5 +1,5 @@
 use crate::handlers::default::Handler;
-use crate::utils::config::Config;
+use crate::utils::config::CONFIG;
 use crate::worker::types::ProcessorIPC;
 use log::info;
 use serenity::prelude::GatewayIntents;
@@ -9,15 +9,25 @@ use std::sync::Arc;
 use songbird::Songbird;
 use crate::utils::helpers::initialize;
 use nanoid::nanoid;
+use crate::state::{initializer::StateClient, manager::State};
 
+pub async fn initialize_state() -> State {
+    let redis_url = &CONFIG.redis_url;
+    let state_client = StateClient::new(redis_url)
+        .expect("Failed to initialize Redis client");
+    let state = State::new(state_client);
+    
+    info!("State initialized successfully");
+    
+    state
+}
 
 pub async fn initialize_songbird(
-    config: &Config,
     _ipc: &mut ProcessorIPC,
 ) -> Option<Arc<Songbird>> {
     let intents = GatewayIntents::non_privileged();
 
-    let mut client = serenity::Client::builder(&config.config.discord_bot_token, intents)
+    let mut client = serenity::Client::builder(&CONFIG.config.discord_bot_token, intents)
         .event_handler(Handler)
         .register_songbird()
         .await
@@ -48,14 +58,14 @@ pub async fn initialize_songbird(
         None
     }
 }
-
 // pub async fn initialize_scheduler(config: Config, ipc: &mut ProcessorIPC) {
 //     info!("Scheduler INIT");
 //     // Init server
 //     initialize_api(&config, ipc, &nanoid!()).await;
 // }
 
-pub fn start_rusty() {
-    initialize();
+pub async fn start_rusty() {
+    initialize().await;
+    initialize_state().await;
     log::info!("Server Starting...");
 }
