@@ -4,8 +4,6 @@ use colored::Colorize;
 use crate::utils::logger::loggers;
 use std::time::Duration;
 
-
-
 pub const fn minutes_to_duration(minutes: u64) -> Duration {
     Duration::from_secs(minutes * 60)
 }
