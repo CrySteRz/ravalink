@@ -1,7 +1,5 @@
-
 use fern::colors::{Color, ColoredLevelConfig};
-
-
+use log::LevelFilter;
 
 pub async fn loggers() {
     let colors = ColoredLevelConfig::new()
@@ -23,6 +21,9 @@ pub async fn loggers() {
     });
 
     loggers = loggers.level(log::LevelFilter::Debug);
+    loggers = loggers
+        .level_for("serenity", LevelFilter::Warn) 
+        .level_for("tracing", LevelFilter::Warn);
     loggers = loggers.chain(std::io::stdout());
 
     loggers.apply().unwrap();

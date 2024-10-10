@@ -1,51 +1,45 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt};
+use rdkafka::producer::FutureProducer;
 use songbird::tracks::TrackHandle;
-use std::fmt;
 use std::sync::Arc;
-use tokio::sync::broadcast::{Sender, Receiver};
-use songbird::Songbird;
-use ravalink_interconnect::errors::BotError;
-use ravalink_interconnect::protocol::{JobRequest, JobRequestType};
+use tokio::sync::{broadcast::{self}, Mutex};
+use std::num::NonZero;
 
 #[derive(Clone, Debug)]
-pub enum Infrastructure {
-    CheckTime,
+pub enum ServerEventType {
+    TrackError { error: String },
     TrackEnded,
 }
 
 #[derive(Clone, Debug)]
-pub enum ProcessorIncomingAction {
-    Infrastructure(Infrastructure),
-    Actions(JobRequestType),
+pub enum ServerMessage{
+    Event(ServerEventType),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum JobID {
-    Global(),
-    Specific(String),
+#[derive(Clone)]
+pub struct ServerIPCData{
+    pub message: ServerMessage,
+    pub guild_id: NonZero<u64>,
+    pub job_id: String,
+    pub producer: Option<Arc<Mutex<FutureProducer>>>,
 }
 
-impl fmt::Display for JobID {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let JobID::Specific(s) = self {
-            return write!(f, "{}", s);
-        }
-        write!(f, "GLOBAL")
+// Manual Debug implementation
+impl fmt::Debug for ServerIPCData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServerIPCData")
+            .field("message", &self.message)
+            .field("guild_id", &self.guild_id)
+            .field("job_id", &self.job_id)
+            // You can either omit the producer or print a custom message instead
+            .field("producer", &"FutureProducer omitted")
+            .finish()
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ProcessorIPCData {
-    pub action_type: ProcessorIncomingAction,
-    pub songbird: Option<Arc<Songbird>>,
-    pub job_request: Option<JobRequest>,
-    pub error: Option<BotError>,
-    pub job_id: JobID,
-}
-
-pub struct ProcessorIPC {
-    pub sender: Arc<Sender<ProcessorIPCData>>,
-    pub receiver: Receiver<ProcessorIPCData>,
+pub struct ServerIPC {
+    pub sender: Arc<broadcast::Sender<ServerIPCData>>,
+    pub receiver: broadcast::Receiver<ServerIPCData>,
 }
 
 struct GuildQueue {

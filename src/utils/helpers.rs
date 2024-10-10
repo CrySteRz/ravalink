@@ -2,14 +2,10 @@ use std::env;
 use std::fs;
 use colored::Colorize;
 use crate::utils::logger::loggers;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const fn minutes_to_duration(minutes: u64) -> Duration {
     Duration::from_secs(minutes * 60)
-}
-
-pub const fn hours_to_duration(hours: u64) -> Duration {
-    Duration::from_secs(hours * 60 * 60)
 }
 
 pub fn is_program_in_path(program: &str) -> bool {
@@ -46,4 +42,17 @@ pub async fn initialize() {
     print_banner();
     print_warnings();
     loggers().await;
+}
+
+
+
+pub fn get_unix_timestamp() -> Duration {
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+}
+
+pub fn get_timestamp() -> u64 {
+    get_unix_timestamp().as_secs()
 }

@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use std::future::Future;
 use log::{debug, error};
 use rdkafka::Message as KafkaMessage;
 use anyhow::Result;
@@ -10,9 +10,9 @@ use songbird::Songbird;
 use tokio::sync::broadcast::Sender;
 
 use crate::utils::constants::KAFKA_SEND_TIMEOUT;
-use crate::worker::types::{ProcessorIPC, ProcessorIPCData};
+use crate::worker::types::{ServerIPC, ServerIPCData};
 use crate::utils::config::CONFIG;
-use ravalink_interconnect::protocol::{JobRequest, JobEvent, JobResponse};
+use ravalink_interconnect::protocol::Message;
 use crate::utils::helpers::minutes_to_duration;
 
 fn configure_kafka_ssl(mut kafka_config: ClientConfig) -> ClientConfig {
@@ -56,18 +56,22 @@ pub async fn initialize_producer(brokers: &str) -> FutureProducer {
 
     let kafka_config = configure_kafka_ssl(kafka_config);
 
-    kafka_config.create().expect("Failed to create Producer")
+    let producer: FutureProducer = kafka_config.create().expect("Failed to create Generic Producer");
+    producer
 }
 
-pub async fn initialize_consume_generic(
+pub async fn initialize_consume_generic<F, Fut>(
     brokers: &str,
-    ipc: &mut ProcessorIPC,
+    ipc: &mut ServerIPC,
     songbird: Option<Arc<Songbird>>,
     group_id: &str,
-    callback: impl Fn(JobRequest, Arc<Sender<ProcessorIPCData>>, Option<Arc<Songbird>>) -> Result<()> + Send + Sync,
-    initialized_callback: impl Fn() -> () + Send + Sync,
-) {
-    let mut kafka_config = ClientConfig::new()
+    callback: F,
+)
+where
+    F: Fn(Message, Arc<Sender<ServerIPCData>>, Option<Arc<Songbird>>) -> Fut + Send + Sync,
+    Fut: Future<Output = Result<()>> + Send + 'static,
+{
+    let kafka_config = ClientConfig::new()
         .set("group.id", group_id)
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
@@ -83,19 +87,18 @@ pub async fn initialize_consume_generic(
         .subscribe(&[&CONFIG.kafka.kafka_topic])
         .expect("Can't subscribe to specified topic");
 
-    initialized_callback();
 
     loop {
         match consumer.recv().await {
             Ok(m) => {
                 if let Some(payload) = m.payload() {
-                    match serde_json::from_slice::<JobRequest>(payload) {
+                    match serde_json::from_slice::<Message>(payload) {
                         Ok(parsed_message) => {
                             if let Err(e) = callback(
                                 parsed_message,
                                 Arc::clone(&ipc.sender),
                                 songbird.clone(),
-                            )
+                            ).await
                             {
                                 error!("Callback execution failed: {}", e);
                             }
@@ -111,53 +114,20 @@ pub async fn initialize_consume_generic(
     }
 }
 
-pub async fn send_job_request(message: &JobRequest, topic: &str, producer: &FutureProducer) {
+pub async fn send_generic_message(message: &Message, topic: &str, producer: &FutureProducer) {
     let data = match serde_json::to_string(message) {
         Ok(d) => d,
         Err(e) => {
-            error!("Failed to serialize JobRequest: {}", e);
+            error!("Failed to serialize Message: {}", e);
             return;
         }
     };
 
     let record: FutureRecord<'_, String, String> = FutureRecord::to(topic).payload(&data);
     if let Err((e, _)) = producer.send(record, minutes_to_duration(KAFKA_SEND_TIMEOUT)).await {
-        error!("Failed to send JobRequest: {}", e);
+        error!("Failed to send Message: {}", e);
     } else {
-        debug!("Sent JobRequest");
+        debug!("Sent Message: {:?}", message);
     }
 }
 
-pub async fn send_job_event(event: &JobEvent, topic: &str, producer: &FutureProducer) {
-    let data = match serde_json::to_string(event) {
-        Ok(d) => d,
-        Err(e) => {
-            error!("Failed to serialize JobEvent: {}", e);
-            return;
-        }
-    };
-
-    let record: FutureRecord<'_, String, String> = FutureRecord::to(topic).payload(&data);
-    if let Err((e, _)) = producer.send(record, minutes_to_duration(KAFKA_SEND_TIMEOUT)).await {
-        error!("Failed to send JobEvent: {}", e);
-    } else {
-        debug!("Sent JobEvent");
-    }
-}
-
-pub async fn send_job_response(response: &JobResponse, topic: &str, producer: &FutureProducer) {
-    let data = match serde_json::to_string(response) {
-        Ok(d) => d,
-        Err(e) => {
-            error!("Failed to serialize JobResponse: {}", e);
-            return;
-        }
-    };
-
-    let record: FutureRecord<'_, String, String> = FutureRecord::to(topic).payload(&data);
-    if let Err((e, _)) = producer.send(record, minutes_to_duration(KAFKA_SEND_TIMEOUT)).await {
-        error!("Failed to send JobResponse: {}", e);
-    } else {
-        debug!("Sent JobResponse");
-    }
-}

@@ -1,6 +1,5 @@
 use crate::handlers::default::Handler;
 use crate::utils::config::CONFIG;
-use crate::worker::types::ProcessorIPC;
 use log::info;
 use serenity::prelude::GatewayIntents;
 use songbird::Config as SongbirdConfig;
@@ -10,23 +9,26 @@ use songbird::Songbird;
 use crate::utils::helpers::initialize;
 use nanoid::nanoid;
 use crate::state::{initializer::StateClient, manager::State};
+use crate::worker::connector::initialize_api;
+use crate::worker::types::{ServerIPCData, ServerIPC};
+use tokio::sync::broadcast::{Sender, Receiver};
+use tokio::sync::broadcast;
 
-pub async fn initialize_state() -> State {
-    let redis_url = &CONFIG.redis_url;
-    let state_client = StateClient::new(redis_url)
-        .expect("Failed to initialize Redis client");
-    let state = State::new(state_client);
+// pub async fn initialize_state() -> State {
+//     let redis_url = &CONFIG.redis_url;
+//     let state_client = StateClient::new(redis_url)
+//         .expect("Failed to initialize Redis client");
+//     let state = State::new(state_client);
+//     info!("STATE initialized successfully");
     
-    info!("State initialized successfully");
-    
-    state
-}
+//     state
+// }
 
 pub async fn initialize_songbird(
-    _ipc: &mut ProcessorIPC,
+    _ipc: &mut ServerIPC,
 ) -> Option<Arc<Songbird>> {
+    
     let intents = GatewayIntents::non_privileged();
-
     let mut client = serenity::Client::builder(&CONFIG.config.discord_bot_token, intents)
         .event_handler(Handler)
         .register_songbird()
@@ -42,8 +44,6 @@ pub async fn initialize_songbird(
             .map_err(|why| println!("Client ended: {:?}", why));
     });
 
-    info!("Songbird Initialized Successfully");
-
     let manager = {
         let data = client_data.read().await;
         data.get::<songbird::SongbirdKey>().cloned()
@@ -58,14 +58,32 @@ pub async fn initialize_songbird(
         None
     }
 }
-// pub async fn initialize_scheduler(config: Config, ipc: &mut ProcessorIPC) {
-//     info!("Scheduler INIT");
-//     // Init server
-//     initialize_api(&config, ipc, &nanoid!()).await;
-// }
 
-pub async fn start_rusty() {
+pub async fn initialize_worker_pool (ipc: &mut ServerIPC) {
+    info!("Worker Pool Initialized");
+    let songbird = initialize_songbird(ipc).await;
+    initialize_api(ipc, songbird, &nanoid!()).await;
+}
+
+pub async fn initialize_ipc() -> ServerIPC {
+    let (tx_processor, _) = broadcast::channel(16);
+    let worker_rx = tx_processor.subscribe();
+    let tx_main = Arc::new(tx_processor);
+    let worker_ipc = ServerIPC {
+        sender: tx_main.clone(),
+        receiver: worker_rx,
+    };
+
+    return worker_ipc;
+}
+
+
+pub async fn start_rusty_server() {
     initialize().await;
-    initialize_state().await;
+    // initialize_state().await;
+    let mut ipc = initialize_ipc().await;
+    initialize_worker_pool(&mut ipc).await;
+
     log::info!("Server Starting...");
 }
+
