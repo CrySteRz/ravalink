@@ -15,3 +15,9 @@ Ravalink is a scalable audio processing service for Discord bots, designed as a 
 - Rust 1.65+
 - Apache Kafka
 - [`ravalink-interconnect`](https://github.com/CrySteRz/ravalink-interconnect) (message schema)
+
+## Inspired By
+
+This project was originally inspired by the groundbreaking work of **[Hearth Audio](https://github.com/HearthAudio)**. While my implementation has evolved in different directions, i gratefully acknowledge their foundational contributions to the space.
+
+**Note:** This project is not affiliated with, endorsed by, or connected to the original project in any official capacity.
